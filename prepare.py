@@ -103,6 +103,7 @@ def main():
         
         # Convert PGN to UCI
         print(f"Running pgn-extract. Logging to: {log_path}")
+        print(f"Total Games to process: {int(selected_record['count']):,d}")
         process_call = f"pgn-extract -L{log_path} -R{headers_file} -Wuci --nomovenumbers --noresults -C -N -V -w100000 {pgn_path} -o {uci_path}"
         subprocess.run(process_call.split(" "))
         os.remove(headers_file) # remove temp file
