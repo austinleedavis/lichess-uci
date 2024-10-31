@@ -1,6 +1,6 @@
 # Lichess Open Database UCI Converter
 
-The [Lichess.org Open Database](https://database.lichess.org/) (LOD) publishes standard rated games, played on lichess.org, in PGN format. This repository provides scripts to download and decompress those files, convert the moves from Portable Game Notation (PGN) format to Universal Chess Interface (UCI) format, and load the games into a Hugging Face dataset. This allows for efficient storage and easy access to game data in a format widely compatible with machine learning models and analyses.
+The [Lichess.org Open Database](https://database.lichess.org/) publishes standard rated games played on lichess.org in PGN format. This repository provides scripts to download and decompress those files, convert the moves from Portable Game Notation (PGN) format to Universal Chess Interface (UCI) format, and load the games into a Hugging Face dataset. This allows for efficient storage and easy access to game data in a format widely compatible with machine learning models and analyses.
 
 ## Features
 
