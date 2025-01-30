@@ -69,6 +69,7 @@ def main():
     parser.add_argument("--data_dir", type=str,default="data",help="Location to store the data. (Default=data/)")
     parser.add_argument("--list",action="store_true", help="Print the list of available files from the Lichess.org Open Dataset",)    
     parser.add_argument("--missing_only",action="store_true",help="When listing, only show files which are not currently in the download cache.",)
+    parser.add_argument("--use_local_zts_path", type=str, help="Path to a local ZST file. If provided, the script will use this local ZST file instead of downloading it from Lichess.org. This is useful for processing large pre-downloaded files.",)
     parser.add_argument("--force_download_zst",action="store_true",help="Download (overwrite) existing ZST file",)
     parser.add_argument("--force_overwrite_pgn",action="store_true",help="Decompress (overwrite) existing PGN file",)
     parser.add_argument("--force_overwrite_uci",action="store_true",help="Recreate (overwrite) existing UCI file by processing the raw PGN again.",)
@@ -121,12 +122,16 @@ def main():
     ############################
     # Download and extract
     ############################
-    if args.force_download_zst or (not is_cached(selected_record["url"])):
-        download(url=selected_record["url"], force=args.force_download_zst)
-
-    if args.force_overwrite_pgn or (not os.path.exists(pgn_path)):
-        cache_path = get_cache_path(selected_record["url"])
+    if args.use_local_zts_path:
+        cache_path = args.use_local_zts_path
         extract_zst_file(cache_path, pgn_path)
+    else:
+        if args.force_download_zst or (not is_cached(selected_record["url"])):
+            download(url=selected_record["url"], force=args.force_download_zst)
+
+        if args.force_overwrite_pgn or (not os.path.exists(pgn_path)):
+            cache_path = get_cache_path(selected_record["url"])
+            extract_zst_file(cache_path, pgn_path)
 
     ############################
     # PGN to UCI
