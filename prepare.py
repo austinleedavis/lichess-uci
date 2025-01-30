@@ -8,6 +8,7 @@ import glob
 import os
 import subprocess
 from io import TextIOWrapper
+import json
 
 import datasets
 import regex as re
@@ -36,6 +37,20 @@ HEADERS = [
     "Transcript",
 ]
 
+UCI_PATTERN = re.compile(r"\b[a-h][1-8][a-h][1-8][QBRN]?\b")
+FEN_PATTERN = re.compile(r"\{ ([^}]+) \}")
+
+
+def parse_moves_and_fen(game_string: str):
+    uci_moves = UCI_PATTERN.findall(game_string)
+    fen_strings = FEN_PATTERN.findall(game_string)
+    return " ".join(uci_moves), json.dumps(fen_strings)
+
+
+def parse_moves_only(game_string: str):
+    uci_moves = UCI_PATTERN.findall(game_string)
+    return " ".join(uci_moves)
+
 
 def main():
     ############################
@@ -57,6 +72,7 @@ def main():
     parser.add_argument("--force_overwrite_pgn",action="store_true",help="Decompress (overwrite) existing PGN file",)
     parser.add_argument("--force_overwrite_uci",action="store_true",help="Recreate (overwrite) existing UCI file by processing the raw PGN again.",)
     parser.add_argument("--force_overwrite_tsv",action="store_true",help="Recreate (overwrite) existing TSV file by processing the UCI file again.",)
+    parser.add_argument("--include_fen",action="store_true",help="Include FEN strings in the TSV file.",)    
     # fmt: on
 
     args = parser.parse_args()
@@ -126,7 +142,10 @@ def main():
         # Convert PGN to UCI
         print(f"Running pgn-extract. Logging to: {log_path}")
         print(f"Total Games to process: {int(selected_record['count']):,d}")
-        process_call = f"pgn-extract -L{log_path} -R{headers_file} -Wuci --nomovenumbers --noresults -C -N -V -w100000 {pgn_path} -o {uci_path}"
+        # the process call outputs uci moves (with uppercase promotions), skips faux en passant, and uses 100k char length to avoid multi-line transcripts
+        process_call = f"pgn-extract -L{log_path} -R{headers_file} -Wuci --nofauxep -w100000 {pgn_path} -o {uci_path}"
+        if args.include_fen:
+            process_call += " --fencomments"
         subprocess.run(process_call.split(" "))
         os.remove(headers_file)  # remove temp file
 
@@ -135,6 +154,10 @@ def main():
     ############################
     if args.force_overwrite_tsv or (not os.path.exists(tsv_path)):
 
+        # We append the header here because pgn-extract doesn't recognize it as a valid header.
+        if args.include_fen:
+            HEADERS.append("Fens")
+
         # do a quick line count so we can show progess w/ tqdm
         uci_file_line_count = count_lines(uci_path)
         with open(uci_path, "r") as in_file, open(tsv_path, "w") as out_file:
@@ -142,7 +165,7 @@ def main():
             # write the TSV headers
             write_line(out_file=out_file, headers=HEADERS, data=None)
 
-            metadata = {}
+            data = {}
             for line in tqdm(
                 in_file, total=uci_file_line_count, desc="Converting to TSV"
             ):
@@ -150,9 +173,12 @@ def main():
                     continue
 
                 if line[0] != "[":  # uci line
-                    metadata["Transcript"] = line
-                    write_line(out_file=out_file, headers=HEADERS, data=metadata)
-                    metadata = {}
+                    if args.include_fen:
+                        data["Transcript"], data["Fens"] = parse_moves_and_fen(line)
+                    else:
+                        data["Transcript"] = parse_moves_only(line)
+                    write_line(out_file=out_file, headers=HEADERS, data=data)
+                    data = {}
                     continue
 
                 match = re.match(r'\[(\w+) "([^"]+)"\]', line)
@@ -167,9 +193,9 @@ def main():
 
                 if key == "Site":
                     # only include the UUID, not the whole URL
-                    metadata[key] = value.split("/")[-1]
+                    data[key] = value.split("/")[-1]
                 else:
-                    metadata[key] = value
+                    data[key] = value
 
     ############################
     # Push to Hub
@@ -211,7 +237,7 @@ def count_lines(path: str) -> str:
 def write_line(*, out_file: TextIOWrapper, headers: list[str], data: dict[str, str]):
     if data:
         element_list = [data.get(header, "") for header in headers]
-        out_file.write("\t".join([element for element in element_list]))
+        out_file.write("\t".join([element for element in element_list]) + "\n")
     else:
         out_file.write("\t".join(headers) + "\n")
 
