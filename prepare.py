@@ -16,8 +16,26 @@ import zstandard as zstd
 from huggingface_hub import whoami
 from tqdm.auto import tqdm
 
-COUNTS_URL = 'https://database.lichess.org/standard/counts.txt'
-HEADERS = ["Event","Site","White","Black","Result","UTCDate","UTCTime","WhiteElo","BlackElo","WhiteRatingDiff","BlackRatingDiff","ECO","Opening","TimeControl","Termination", "Transcript"]
+COUNTS_URL = "https://database.lichess.org/standard/counts.txt"
+HEADERS = [
+    "Event",
+    "Site",
+    "White",
+    "Black",
+    "Result",
+    "UTCDate",
+    "UTCTime",
+    "WhiteElo",
+    "BlackElo",
+    "WhiteRatingDiff",
+    "BlackRatingDiff",
+    "ECO",
+    "Opening",
+    "TimeControl",
+    "Termination",
+    "Transcript",
+]
+
 
 def main():
     ############################
@@ -38,7 +56,7 @@ def main():
     parser.add_argument("--force_download_zst",action="store_true",help="Download (overwrite) existing ZST file",)
     parser.add_argument("--force_overwrite_pgn",action="store_true",help="Decompress (overwrite) existing PGN file",)
     parser.add_argument("--force_overwrite_uci",action="store_true",help="Recreate (overwrite) existing UCI file by processing the raw PGN again.",)
-    parser.add_argument("--force_overwrite_tsv",action="store_true",help="Recreate (overwrite) existing TSV file by processing the UCI file again.",)    
+    parser.add_argument("--force_overwrite_tsv",action="store_true",help="Recreate (overwrite) existing TSV file by processing the UCI file again.",)
     # fmt: on
 
     args = parser.parse_args()
@@ -57,63 +75,67 @@ def main():
     record_list = list(ZST_RECORDS.values())
 
     if args.missing_only:
-        record_list = get_missing_cache_records(record_list) 
-    
+        record_list = get_missing_cache_records(record_list)
+
     if args.list:
-        for i, record in enumerate(sorted(record_list, key=lambda r: r['date'])):
+        for i, record in enumerate(sorted(record_list, key=lambda r: r["date"])):
             print(f"{i}:\tYYYYmm: '{record['date']}', count: {int(record['count']):,d}")
         exit(0)
-   
 
     ############################
     # prepare paths
     ############################
-    assert (args.year, args.month) in ZST_RECORDS.keys(), f"The games for {args.month}/{args.year} are not available from the Lichess Open Database."
-    
-    selected_record = ZST_RECORDS[(args.year,args.month)]
-    data_folder = os.path.join(args.data_dir, selected_record['date'])
+    assert (
+        args.year,
+        args.month,
+    ) in ZST_RECORDS.keys(), f"The games for {args.month}/{args.year} are not available from the Lichess Open Database."
+
+    selected_record = ZST_RECORDS[(args.year, args.month)]
+    data_folder = os.path.join(args.data_dir, selected_record["date"])
     os.makedirs(data_folder, exist_ok=True)
-    
-    pgn_path = os.path.join(data_folder, selected_record['pgn']) 
-    uci_path = os.path.join(data_folder, selected_record['uci']) 
-    tsv_path = os.path.join(data_folder, selected_record['tsv']) 
-    log_path = os.path.join(data_folder, selected_record['log']) 
+
+    pgn_path = os.path.join(data_folder, selected_record["pgn"])
+    uci_path = os.path.join(data_folder, selected_record["uci"])
+    tsv_path = os.path.join(data_folder, selected_record["tsv"])
+    log_path = os.path.join(data_folder, selected_record["log"])
 
     print(f"Processing {args.year}{args.month}...")
 
     ############################
     # Download and extract
     ############################
-    if args.force_download_zst or (not is_cached(selected_record['url'])):
-        download(url=selected_record['url'], force = args.force_download_zst)
+    if args.force_download_zst or (not is_cached(selected_record["url"])):
+        download(url=selected_record["url"], force=args.force_download_zst)
 
     if args.force_overwrite_pgn or (not os.path.exists(pgn_path)):
-        cache_path = get_cache_path(selected_record['url'])
+        cache_path = get_cache_path(selected_record["url"])
         extract_zst_file(cache_path, pgn_path)
 
     ############################
     # PGN to UCI
-    ############################ 
+    ############################
     if args.force_overwrite_uci or (not os.path.exists(uci_path)):
-        
+
         # Create a temporary headers file so we can use pgn-extract
-        headers_file = os.path.join(data_folder,"lichess_headers.temp.txt")
+        headers_file = os.path.join(data_folder, "lichess_headers.temp.txt")
         with open(headers_file, "w") as f:
-            f.writelines("\n".join(HEADERS[:-1])) # skip final header: it's not in the PGN file!!!
-        
+            f.writelines(
+                "\n".join(HEADERS[:-1])
+            )  # skip final header: it's not in the PGN file!!!
+
         # Convert PGN to UCI
         print(f"Running pgn-extract. Logging to: {log_path}")
         print(f"Total Games to process: {int(selected_record['count']):,d}")
         process_call = f"pgn-extract -L{log_path} -R{headers_file} -Wuci --nomovenumbers --noresults -C -N -V -w100000 {pgn_path} -o {uci_path}"
         subprocess.run(process_call.split(" "))
-        os.remove(headers_file) # remove temp file
+        os.remove(headers_file)  # remove temp file
 
     ############################
     # UCI to TSV
-    ############################ 
+    ############################
     if args.force_overwrite_tsv or (not os.path.exists(tsv_path)):
 
-        # do a quick line count so we can show progess w/ tqdm 
+        # do a quick line count so we can show progess w/ tqdm
         uci_file_line_count = count_lines(uci_path)
         with open(uci_path, "r") as in_file, open(tsv_path, "w") as out_file:
 
@@ -121,23 +143,25 @@ def main():
             write_line(out_file=out_file, headers=HEADERS, data=None)
 
             metadata = {}
-            for line in tqdm(in_file, total=uci_file_line_count, desc='Converting to TSV'):
-                if len(line) < 3: # blanks
+            for line in tqdm(
+                in_file, total=uci_file_line_count, desc="Converting to TSV"
+            ):
+                if len(line) < 3:  # blanks
                     continue
-                
-                if line[0] != "[": # uci line
-                    metadata['Transcript'] = line
-                    write_line(out_file=out_file, headers=HEADERS,data=metadata)
-                    metadata = {}            
+
+                if line[0] != "[":  # uci line
+                    metadata["Transcript"] = line
+                    write_line(out_file=out_file, headers=HEADERS, data=metadata)
+                    metadata = {}
                     continue
 
                 match = re.match(r'\[(\w+) "([^"]+)"\]', line)
-                if not match: # line doesn't contain one of our HEADERS
+                if not match:  # line doesn't contain one of our HEADERS
                     continue
 
                 # process the header
                 key, value = match.groups()
-                    
+
                 if key not in HEADERS:
                     continue
 
@@ -149,47 +173,54 @@ def main():
 
     ############################
     # Push to Hub
-    ############################ 
+    ############################
     if args.push_to_hub:
         ds = datasets.Dataset.from_csv(tsv_path, delimiter="\t")
         ds = fix_dtypes(ds)
         ds.push_to_hub(
-            repo_id=f"{whoami()['name']}/lichess-uci", 
+            repo_id=f"{whoami()['name']}/lichess-uci",
             config_name=f"{selected_record['date']}",
             split="train",
-            data_dir=f"data/{selected_record['date']}"
+            data_dir=f"data/{selected_record['date']}",
         )
     print("Finished.")
 
-def get_cache_path(url:str):
+
+def get_cache_path(url: str):
     config = datasets.DownloadConfig(local_files_only=True)
     manager = datasets.DownloadManager(download_config=config)
     cache_path = manager.download_and_extract(url)
     return cache_path
 
-def count_lines(path:str) -> str:
+
+def count_lines(path: str) -> str:
     """Counts the number of lines in a file."""
+
     def blocks(files, size=65536):
         while True:
             b = files.read(size)
-            if not b: break
+            if not b:
+                break
             yield b
-    
-    with open(path, "r",encoding="utf-8",errors='ignore') as f:
+
+    with open(path, "r", encoding="utf-8", errors="ignore") as f:
         line_count = sum(bl.count("\n") for bl in blocks(f))
     return line_count
 
-def write_line(*, out_file:TextIOWrapper, headers: list[str], data:dict[str,str]):
-        if data:
-            element_list = [data.get(header, "") for header in headers]
-            out_file.write('\t'.join([element for element in element_list]))
-        else:
-            out_file.write('\t'.join(headers)+'\n')
+
+def write_line(*, out_file: TextIOWrapper, headers: list[str], data: dict[str, str]):
+    if data:
+        element_list = [data.get(header, "") for header in headers]
+        out_file.write("\t".join([element for element in element_list]))
+    else:
+        out_file.write("\t".join(headers) + "\n")
+
 
 def fix_dtypes(ds: datasets.Dataset):
     ds = ds.map(
-        map_dtypes, input_columns=["WhiteElo", "BlackElo", "UTCDate", "UTCTime"],
-        desc="Fixing dtypes"
+        map_dtypes,
+        input_columns=["WhiteElo", "BlackElo", "UTCDate", "UTCTime"],
+        desc="Fixing dtypes",
     )
 
     ds.features["WhiteElo"] = datasets.Value("int32")
@@ -220,7 +251,8 @@ def map_dtypes(whiteelo: str, blackelo: str, utcdate: str, utctime: str):
         "UTCTime": utctime,
     }
 
-def is_cached(zst_filename:str ) -> bool:
+
+def is_cached(zst_filename: str) -> bool:
     config = datasets.DownloadConfig(local_files_only=True)
     manager = datasets.DownloadManager(download_config=config)
     try:
@@ -235,7 +267,8 @@ def is_cached(zst_filename:str ) -> bool:
             return False
     return True
 
-def download(url, force): 
+
+def download(url, force):
     print(f"Downloading: {url}")
     config = datasets.DownloadConfig(force_download=force)
     manager = datasets.DownloadManager(download_config=config)
@@ -243,11 +276,13 @@ def download(url, force):
     print("cache_path: ", cache_path)
     return cache_path
 
+
 def extract_zst_file(cache_path, out_file):
     print(f"Extracting to: {out_file}")
     dctx = zstd.ZstdDecompressor()
     with open(cache_path, "rb") as ifh, open(out_file, "wb") as ofh:
         dctx.copy_stream(ifh, ofh)
+
 
 def get_missing_cache_records(zst_records_list: list[dict]) -> dict:
     """
@@ -255,7 +290,7 @@ def get_missing_cache_records(zst_records_list: list[dict]) -> dict:
     """
     missing_records = []
     for record in zst_records_list:
-        zst_file_url = record['url']
+        zst_file_url = record["url"]
         if not is_cached(zst_file_url):
             missing_records.append(record)
 
@@ -264,11 +299,11 @@ def get_missing_cache_records(zst_records_list: list[dict]) -> dict:
 
 def parse_counts_file(url: str):
     """
-    Parses the official list of """
+    Parses the official list of"""
     response = requests.get(url)
     response.raise_for_status()  # Ensures we handle any HTTP errors
     lines = response.text.splitlines()  # Splits text content by lines
-    lines = [line.split(' ') for line in lines if len(line)]
+    lines = [line.split(" ") for line in lines if len(line)]
     records = {}
     for line in lines:
         yyyy = line[0][26:30]
@@ -278,13 +313,14 @@ def parse_counts_file(url: str):
             url=f"https://database.lichess.org/standard/{line[0]}",
             count=line[1],
             date=f"{yyyy}{mm}",
-            pgn = line[0][:-4],
-            uci = line[0][:-7]+"uci",
-            tsv = line[0][:-7]+"tsv",
-            log = line[0][:-7]+"log",
+            pgn=line[0][:-4],
+            uci=line[0][:-7] + "uci",
+            tsv=line[0][:-7] + "tsv",
+            log=line[0][:-7] + "log",
         )
 
     return records
+
 
 if __name__ == "__main__":
     main()
