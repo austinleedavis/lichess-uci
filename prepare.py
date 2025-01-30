@@ -6,6 +6,7 @@ import argparse
 import datetime
 import glob
 import os
+import multiprocessing
 import subprocess
 from io import TextIOWrapper
 import json
@@ -202,9 +203,16 @@ def main():
     ############################
     if args.push_to_hub:
         ds = datasets.Dataset.from_csv(tsv_path, delimiter="\t")
-        ds = fix_dtypes(ds)
+        ds = fix_dtypes(ds, has_fens=args.include_fen)
+        ds_name = f"{whoami()['name']}/lichess-uci{'-fens' if args.include_fen else ''}"
+        # save to disk (in case an issue arises in upload)
+        local_output_file = os.path.join(data_folder, ds_name)
+        os.makedirs(local_output_file, exist_ok=True)
+        ds.save_to_disk(local_output_file)
+
+        # push to hub
         ds.push_to_hub(
-            repo_id=f"{whoami()['name']}/lichess-uci",
+            repo_id=ds_name,
             config_name=f"{selected_record['date']}",
             split="train",
             data_dir=f"data/{selected_record['date']}",
@@ -242,11 +250,22 @@ def write_line(*, out_file: TextIOWrapper, headers: list[str], data: dict[str, s
         out_file.write("\t".join(headers) + "\n")
 
 
-def fix_dtypes(ds: datasets.Dataset):
+def parse_array(example):
+    example["Fens"] = json.loads(example["Fens"])
+    return example
+
+
+def fix_dtypes(ds: datasets.Dataset, has_fens: bool = False):
+    num_proc = min(8, multiprocessing.cpu_count() // 2)
+
+    if has_fens:
+        ds = ds.map(parse_array, num_proc=num_proc, desc="Parsing FEN arrays")
+
     ds = ds.map(
         map_dtypes,
         input_columns=["WhiteElo", "BlackElo", "UTCDate", "UTCTime"],
         desc="Fixing dtypes",
+        num_proc=num_proc,
     )
 
     ds.features["WhiteElo"] = datasets.Value("int32")
