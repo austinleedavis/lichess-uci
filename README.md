@@ -32,25 +32,29 @@ The [Lichess.org Open Database](https://database.lichess.org/) publishes standar
 ## Usage
 
 ```bash
-prepare.py [-h] [--list] [--year {2013,...}] [--month {01, ..., 12}]
-                  [--missing_only] [--push_to_hub] [--data_dir DATA_DIR] [--force_download_zst] [--force_overwrite_pgn] [--force_overwrite_uci]
-                  [--force_overwrite_tsv] [--download_proc DOWNLOAD_PROC] [--process_proc PROCESS_PROC]
+prepare.py [-h] [--year {2013,...}] [--month {01,...}] [--push_to_hub]
+                  [--data_dir DATA_DIR] [--list] [--missing_only] [--force_download_zst] [--force_overwrite_pgn] [--force_overwrite_uci] [--force_overwrite_tsv]
+                  [--include_fen]
 ```
 ### Options
 ```text
--h, --help             Show this help message and exit
+-h, --help            show this help message and exit
 --year {2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023,2024}
-                       Year (format: yyyy). Dynamically updated from Lichess.org
+                     Year (format: yyyy). Dynamically updated from Lichess.org
 --month {01,02,03,04,05,06,07,08,09,10,11,12}
-                       Month (format: mm). Dynamically updated from Lichess.org
---push_to_hub          Push dataset to huggingface hub.
---data_dir DATA_DIR    Location to store the processed data. . (Default=data/)
---list                 Print the list of available files from the Lichess.org Open Dataset
---missing_only         When listing available files, only show files which are not currently in the download cache.
---force_download_zst   Download (overwrite) existing ZST file, i.e., ignore the download cache
---force_overwrite_pgn  Decompress (overwrite) existing PGN file
---force_overwrite_uci  Recreate (overwrite) existing UCI file by processing the raw PGN again.
---force_overwrite_tsv  Recreate (overwrite) existing TSV file by processing the UCI file again.
+                     Month (format: mm). Dynamically updated from Lichess.org
+--push_to_hub         Push dataset to huggingface hub.
+--data_dir DATA_DIR   Location to store the data. (Default=data/)
+--list                Print the list of available files from the Lichess.org Open Dataset
+--missing_only        When listing, only show files which are not currently in the download cache.
+--force_download_zst  Download (overwrite) existing ZST file
+--force_overwrite_pgn
+                     Decompress (overwrite) existing PGN file
+--force_overwrite_uci
+                     Recreate (overwrite) existing UCI file by processing the raw PGN again.
+--force_overwrite_tsv
+                     Recreate (overwrite) existing TSV file by processing the UCI file again.
+--include_fen         Include FEN strings in the TSV file.
 ```
 
 ## Output
